@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <title>IDECO AI - Lọc Danh Sách Khách Hàng</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <style>
+    :root{
+      --bg:#f5f7fb;--card:#fff;--text:#182230;--muted:#667085;--line:#e4e7ec;
+      --primary:#2563eb;--primary2:#0ea5a5;--green:#16a34a;--orange:#ea580c;--red:#dc2626;
+      --indigo:#4f46e5;--shadow:0 10px 30px rgba(16,24,40,.08);--radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    button,input,textarea,select{font:inherit}
+    button{cursor:pointer}
+    button:disabled{cursor:not-allowed;opacity:.55}
+    .hidden{display:none!important}
+    .app-shell{max-width:1420px;margin:0 auto;padding:22px}
+    .topbar{position:sticky;top:0;z-index:20;background:rgba(245,247,251,.94);backdrop-filter:blur(12px);border-bottom:1px solid rgba(228,231,236,.8)}
+    .topbar-inner{max-width:1420px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand-mini{display:flex;align-items:center;gap:10px;font-weight:800;color:#0f172a}
+    .brand-mark{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,#2563eb,#14b8a6);box-shadow:0 6px 18px rgba(37,99,235,.22)}
+    .status-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px}
+    .pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;color:#475467}
+    .pill.good{background:#ecfdf3;border-color:#abefc6;color:#067647}.pill.warn{background:#fffaeb;border-color:#fedf89;color:#b54708}.pill.bad{background:#fef3f2;border-color:#fecdca;color:#b42318}
+    .icon-btn{border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 11px;color:#344054;font-weight:700}
+    .icon-btn:hover{background:#f9fafb}
+    .hero{text-align:center;padding:32px 12px 20px}
+    .hero h1{margin:0;font-size:clamp(32px,5vw,54px);line-height:1.05;letter-spacing:-1.8px;background:linear-gradient(90deg,#2563eb,#0f9f95);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hero p{max-width:850px;margin:12px auto 0;color:var(--muted);font-size:17px;line-height:1.6}
+    .sub-banner{max-width:940px;margin:18px auto 0;padding:13px 16px;border-radius:14px;background:#ecfdf3;border:1px solid #abefc6;color:#067647;text-align:left;font-size:13px;box-shadow:0 4px 14px rgba(16,185,129,.06)}
+    .tabs{display:flex;justify-content:center;gap:2px;border-bottom:1px solid var(--line);margin:5px 0 26px}
+    .tab-btn{border:0;background:transparent;padding:14px 20px;font-weight:800;color:#667085;border-bottom:3px solid transparent}
+    .tab-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+    .count-badge{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;margin-left:6px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:11px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+    .section-title{margin:0 0 16px;font-size:22px}.section-sub{color:var(--muted);font-size:13px;margin-top:-7px;margin-bottom:16px}
+    .textarea{width:100%;min-height:275px;resize:vertical;padding:16px;border:1px solid #d0d5dd;border-radius:12px;outline:none;background:#fff;color:#101828;line-height:1.5}
+    .textarea:focus,.field:focus{border-color:#84adff;box-shadow:0 0 0 4px #eef4ff}
+    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    .btn{border:0;border-radius:10px;padding:11px 15px;font-weight:800;color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;transition:.15s transform,.15s opacity,.15s filter}
+    .btn:hover:not(:disabled){filter:brightness(.96);transform:translateY(-1px)}
+    .btn.primary{background:#2563eb}.btn.green{background:#16a34a}.btn.teal{background:#0f9f95}.btn.indigo{background:#4f46e5}.btn.orange{background:#ea580c}.btn.red{background:#dc2626}.btn.gray{background:#475467}
+    .btn.outline{background:#fff;color:#344054;border:1px solid #d0d5dd}.btn.small{padding:8px 11px;min-height:36px;font-size:12px}
+    .message{margin-top:14px;border-radius:12px;padding:12px 14px;display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.5}.message.error{background:#fef3f2;border:1px solid #fecdca;color:#b42318}.message.info{background:#eff8ff;border:1px solid #b2ddff;color:#175cd3}.message.success{background:#ecfdf3;border:1px solid #abefc6;color:#067647}
+    .table-card{margin-top:22px}.table-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:980px}thead{background:#f9fafb}th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13px}th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#667085}tbody tr:hover{background:#fafcff}.name-cell{font-weight:750;color:#101828}
+    .empty{padding:58px 20px;text-align:center;color:#667085}.empty .big{font-size:44px;margin-bottom:8px}.empty h3{color:#344054;margin:5px 0 6px}
+    .saved-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px}.saved-card{border:1px solid var(--line);background:#f9fafb;border-radius:14px;padding:16px;display:flex;flex-direction:column;min-height:210px}.saved-card h3{margin:0 0 8px}.saved-meta{color:#667085;font-size:12px;line-height:1.7}.saved-actions{display:grid;gap:7px;margin-top:auto;padding-top:13px;border-top:1px solid #eaecf0}
+    .saved-top{display:flex;justify-content:space-between;gap:10px}.trash{border:0;background:#fff1f0;color:#d92d20;border-radius:9px;width:36px;height:36px;font-size:17px}
+    .modal-backdrop{position:fixed;inset:0;z-index:60;background:rgba(16,24,40,.56);display:flex;align-items:center;justify-content:center;padding:18px}.modal{width:min(720px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.26)}.modal.small{width:min(440px,100%)}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}.modal-head h2,.modal-head h3{margin:0}.modal-body{padding:20px}.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--line);background:#f9fafb}
+    .close-btn{border:0;background:#f2f4f7;color:#475467;border-radius:9px;width:36px;height:36px;font-size:20px}
+    .field-group{margin-bottom:16px}.field-label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;font-size:13px;font-weight:800;color:#344054}.field{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #d0d5dd;outline:none;background:#fff}.field-wrap{position:relative}.field-wrap .field{padding-right:48px}.eye{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:#f2f4f7;border-radius:8px;width:34px;height:34px}.help{font-size:11px;color:#667085;margin-top:6px;line-height:1.45}
+    .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.wide{grid-column:1/-1}.day-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}.day-chip{position:relative}.day-chip input{position:absolute;opacity:0}.day-chip label{display:block;text-align:center;padding:10px 5px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#475467;font-size:12px;font-weight:800;cursor:pointer}.day-chip input:checked+label{background:#eff8ff;border-color:#84adff;color:#175cd3;box-shadow:inset 0 0 0 1px #84adff}
+    .settings-note{padding:12px;border-radius:11px;background:#fffaeb;border:1px solid #fedf89;color:#93370d;font-size:12px;line-height:1.5}
+    .lock-card{max-width:650px;margin:55px auto;background:#fff;border:1px solid #fecdca;border-radius:20px;box-shadow:var(--shadow);padding:35px;text-align:center}.lock-card .lock{font-size:48px}.lock-card h2{margin:8px 0}.lock-card p{color:#667085;line-height:1.6}
+    .login-screen{min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(circle at top left,#dbeafe 0,transparent 35%),radial-gradient(circle at bottom right,#ccfbf1 0,transparent 35%),#f8fafc}.login-card{width:min(430px,100%);background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 25px 70px rgba(15,23,42,.13);padding:28px}.login-logo{width:64px;height:64px;margin:0 auto 18px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#14b8a6);color:#fff;font-weight:900;font-size:22px;box-shadow:0 12px 25px rgba(37,99,235,.2)}.login-card h1{text-align:center;margin:0 0 8px}.login-card .lead{text-align:center;color:#667085;margin:0 0 23px;font-size:14px;line-height:1.55}.login-status{text-align:center;margin-top:14px;color:#667085;font-size:11px}
+    .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}.spinner.dark{border-color:#d0d5dd;border-top-color:#344054}@keyframes spin{to{transform:rotate(360deg)}}
+    .credit-value{font-variant-numeric:tabular-nums}#modelSelect{display:none}#modelSelect+.help{display:none}.usage-note{font-size:12px;color:#667085;margin-top:7px}.usage-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}@media(max-width:700px){.usage-grid{grid-template-columns:1fr}}
+    .footer-note{text-align:center;color:#98a2b3;font-size:11px;padding:26px 12px 10px}
+    @media(max-width:820px){.settings-grid{grid-template-columns:1fr}.wide{grid-column:auto}.day-grid{grid-template-columns:repeat(4,1fr)}.topbar-inner{align-items:flex-start}.status-row{justify-content:flex-start}.hero{padding-top:20px}.app-shell{padding:14px}.card{padding:16px}.actions .btn{width:100%}.table-head{align-items:flex-start;flex-direction:column}}
+    @media(max-width:560px){.topbar-inner{flex-direction:column}.day-grid{grid-template-columns:repeat(2,1fr)}.tabs{justify-content:flex-start;overflow:auto}.tab-btn{white-space:nowrap}.hero h1{letter-spacing:-1px}}
+  </style>
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">AI</div>
+      <h1>IDECO AI</h1>
+      <p class="lead">Lọc, trích xuất và bổ sung thông tin khách hàng. Đăng nhập để sử dụng ứng dụng.</p>
+      <div class="field-group">
+        <label class="field-label" for="loginPassword">Mật khẩu ứng dụng</label>
+        <div class="field-wrap">
+          <input id="loginPassword" class="field" type="password" autocomplete="current-password" placeholder="Nhập mật khẩu" />
+          <button id="toggleLoginPassword" class="eye" type="button" title="Xem/ẩn mật khẩu">👁</button>
+        </div>
+      </div>
+      <button id="loginBtn" class="btn primary" style="width:100%">🔐 Đăng nhập</button>
+      <div id="loginMessage" class="message error hidden"></div>
+      <div id="loginStatus" class="login-status">Đang tải cấu hình...</div>
+    </div>
+  </section>
+
+  <div id="mainApp" class="hidden">
+    <div class="topbar">
+      <div class="topbar-inner">
+        <div class="brand-mini"><div class="brand-mark">AI</div><div>IDECO AI · Lọc khách hàng</div></div>
+        <div class="status-row">
+          <div id="dayBadge" class="pill">📅 --</div>
+          <div id="firebaseBadge" class="pill warn">☁ Firebase: đang kết nối</div>
+          <div id="creditBadge" class="pill">💳 Credit AI: <span id="creditValue" class="credit-value">--</span></div>
+          <div id="aiUsageBadge" class="pill">🤖 AI hôm nay: <span id="aiUsageValue">0/--</span></div>
+          <button id="refreshCreditBtn" class="icon-btn" title="Cập nhật credit">↻</button>
+          <button id="settingsBtn" class="icon-btn">⚙ Cài đặt</button>
+          <button id="logoutBtn" class="icon-btn">↪ Đăng xuất</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <div class="hero">
+        <h1>AI Lọc Danh Sách Khách Hàng</h1>
+        <p>Dán link website hoặc văn bản để tự động trích xuất tên công ty, người đại diện, điện thoại, ngày thành lập và địa chỉ; sau đó có thể tìm bổ sung từng khách hàng hoặc toàn bộ danh sách bằng chế độ tìm sâu nhiều vòng.</p>
+        <div class="sub-banner"><strong>🛡 AI Search đã được cấu hình:</strong> ứng dụng sử dụng tìm kiếm web có đối chiếu nguồn khi xử lý URL hoặc tìm bổ sung thông tin.</div>
+      </div>
+
+      <div id="lockedView" class="hidden">
+        <div class="lock-card">
+          <div class="lock">🔒</div>
+          <h2>Hôm nay chưa được phép sử dụng</h2>
+          <p id="lockedText">Quản trị viên chưa bật ngày hôm nay trong lịch sử dụng. Bạn vẫn có thể mở Cài đặt hoặc Đăng xuất.</p>
+          <button id="lockedSettingsBtn" class="btn primary">⚙ Mở cài đặt</button>
+        </div>
+      </div>
+
+      <div id="usableView">
+        <div class="tabs">
+          <button id="tabMainBtn" class="tab-btn active">Tạo Danh Sách</button>
+          <button id="tabSavedBtn" class="tab-btn">📁 Danh Sách Đã Lưu <span id="savedCount" class="count-badge hidden">0</span></button>
+        </div>
+
+        <main id="mainTab">
+          <div class="card">
+            <h2 class="section-title">Dán nội dung vào đây</h2>
+            <p class="section-sub">Có thể dán nguyên văn nội dung hoặc URL như https://www.tratencongty.com/...</p>
+            <textarea id="customerInput" class="textarea" placeholder="Dán link website hoặc nội dung văn bản có chứa thông tin khách hàng..."></textarea>
+            <div class="actions">
+              <button id="generateBtn" class="btn primary">✨ Tạo Bảng Khách Hàng</button>
+              <button id="exportDefaultBtn" class="btn green" disabled>⬇ Xuất File Excel</button>
+              <button id="exportCustomBtn" class="btn teal" disabled>▤ Xuất File Định Dạng</button>
+              <button id="exportFormat2Btn" class="btn indigo" disabled>⬇ Xuất Định Dạng 2 (+Địa chỉ)</button>
+              <button id="saveListBtn" class="btn indigo" disabled>📁 Lưu Danh Sách (Định Dạng 2)</button>
+              <button id="enrichAllBtn" class="btn orange" disabled>⚡ Tìm Nhanh SĐT Tất Cả</button>
+            </div>
+            <div id="mainMessage" class="message error hidden"></div>
+          </div>
+
+          <div class="card table-card">
+            <div class="table-head"><h2 class="section-title" style="margin:0">Danh sách khách hàng</h2><div id="resultCount" class="section-sub" style="margin:0">Chưa có dữ liệu</div></div>
+            <div id="tableLoading" class="empty hidden"><div class="spinner dark" style="margin:0 auto 12px;width:28px;height:28px"></div><h3>Đang phân tích dữ liệu...</h3><p>AI đang xử lý nội dung.</p></div>
+            <div id="tableEmpty" class="empty"><div class="big">👥</div><h3>Chưa có dữ liệu</h3><p>Danh sách khách hàng sẽ xuất hiện ở đây sau khi được tạo.</p></div>
+            <div id="tableWrap" class="table-wrap hidden">
+              <table>
+                <thead><tr><th>Tên công ty</th><th>Người đại diện</th><th>Điện thoại</th><th>Ngày thành lập</th><th>Địa chỉ</th><th>Thao tác</th></tr></thead>
+                <tbody id="customerTbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+
+        <main id="savedTab" class="hidden">
+          <div class="card">
+            <h2 class="section-title">Danh Sách Khách Hàng Đã Lưu</h2>
+            <div id="savedEmpty" class="empty"><div class="big">📁</div><h3>Chưa có danh sách nào được lưu</h3><p>Quay lại tab Tạo Danh Sách để tạo và lưu danh sách mới.</p></div>
+            <div id="savedGrid" class="saved-grid hidden"></div>
+          </div>
+        </main>
+      </div>
+      <div class="footer-note">Dữ liệu danh sách lưu trên trình duyệt bằng localStorage. Cấu hình Kie, mật khẩu, ngày/khung giờ và hạn mức AI được đồng bộ qua Firebase Realtime Database khi kết nối thành công. Bộ đếm lượt AI theo ngày được lưu trên từng trình duyệt.</div>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-head"><h2>⚙ Cài đặt ứng dụng</h2><button class="close-btn" data-close="settingsModal">×</button></div>
+      <div class="modal-body">
+        <div class="settings-grid">
+          <div class="field-group wide">
+            <label class="field-label">Công cụ AI</label>
+            <select id="modelSelect" class="field"><option value="gemini-3-8-flash">AI Search mặc định</option></select>
+            <div class="help">Cấu hình hệ thống được ẩn để tránh người dùng thay đổi model.</div>
+          </div>
+          <div class="field-group wide">
+            <label class="field-label" for="kieApiKeyInput">API Key AI</label>
+            <div class="field-wrap">
+              <input id="kieApiKeyInput" class="field" type="password" autocomplete="off" />
+              <button id="toggleKieKey" class="eye" type="button" title="Xem/ẩn API Key">👁</button>
+            </div>
+            <div class="help">Key này được lưu localStorage và đồng bộ Firebase để các máy khác dùng cùng cấu hình.</div>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="newPasswordInput">Mật khẩu mới</label>
+            <div class="field-wrap">
+              <input id="newPasswordInput" class="field" type="password" autocomplete="new-password" placeholder="Để trống nếu không đổi" />
+              <button id="toggleNewPassword" class="eye" type="button">👁</button>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="confirmPasswordInput">Nhập lại mật khẩu mới</label>
+            <div class="field-wrap">
+              <input id="confirmPasswordInput" class="field" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" />
+              <button id="toggleConfirmPassword" class="eye" type="button">👁</button>
+            </div>
+          </div>
+          <div class="field-group wide">
+            <label class="field-label">Ngày trong tuần được phép sử dụng</label>
+            <div id="dayGrid" class="day-grid">
+              <div class="day-chip"><input id="day1" type="checkbox" data-day="1"><label for="day1">Thứ 2</label></div>
+              <div class="day-chip"><input id="day2" type="checkbox" data-day="2"><label for="day2">Thứ 3</label></div>
+              <div class="day-chip"><input id="day3" type="checkbox" data-day="3"><label for="day3">Thứ 4</label></div>
+              <div class="day-chip"><input id="day4" type="checkbox" data-day="4"><label for="day4">Thứ 5</label></div>
+              <div class="day-chip"><input id="day5" type="checkbox" data-day="5"><label for="day5">Thứ 6</label></div>
+              <div class="day-chip"><input id="day6" type="checkbox" data-day="6"><label for="day6">Thứ 7</label></div>
+              <div class="day-chip"><input id="day0" type="checkbox" data-day="0"><label for="day0">Chủ Nhật</label></div>
+            </div>
+            <div class="help">Ứng dụng kiểm tra ngày theo múi giờ Việt Nam (Asia/Ho_Chi_Minh).</div>
+          </div>
+          <div class="field-group wide">
+            <label class="field-label">Giới hạn thời gian dùng Model AI</label>
+            <div class="usage-grid">
+              <div>
+                <label class="field-label" for="aiStartTimeInput">Bắt đầu</label>
+                <input id="aiStartTimeInput" class="field" type="time" value="08:00" />
+              </div>
+              <div>
+                <label class="field-label" for="aiEndTimeInput">Kết thúc</label>
+                <input id="aiEndTimeInput" class="field" type="time" value="18:00" />
+              </div>
+              <div>
+                <label class="field-label" for="aiDailyLimitInput">Tối đa lượt AI/ngày</label>
+                <input id="aiDailyLimitInput" class="field" type="number" min="1" max="1000" step="1" value="100" />
+              </div>
+            </div>
+            <div class="usage-note">Chỉ các thao tác gọi Gemini/Kie.ai mới bị giới hạn. Ngoài ngày/giờ cho phép hoặc vượt số lượt/ngày, ứng dụng sẽ chặn trước khi gửi request để tránh phát sinh credit.</div>
+          </div>
+          <div class="field-group wide">
+            <label class="field-label">Tùy chọn kiểm soát credit</label>
+            <div style="display:grid;gap:10px">
+              <label style="display:flex;align-items:center;gap:9px;font-size:13px"><input id="blockOutsideScheduleInput" type="checkbox" checked> Khóa toàn bộ lệnh gọi AI ngoài khung giờ đã thiết lập</label>
+              <label style="display:flex;align-items:center;gap:9px;font-size:13px"><input id="limitDeepSearchInput" type="checkbox" checked> Khi tìm sâu số điện thoại, mỗi khách hàng vẫn tối đa 3 vòng nhưng mọi vòng đều tính vào hạn mức ngày</label>
+            </div>
+          </div>
+          <div class="field-group wide">
+            <label class="field-label" for="firebaseUrlInput">Realtime Database URL</label>
+            <input id="firebaseUrlInput" class="field" type="text" placeholder="Tự động dò; chỉ nhập nếu Firebase dùng URL khác" />
+            <div class="help">Firebase config bạn cung cấp không có databaseURL, nên ứng dụng tự dò URL phổ biến. Nếu dự án dùng vùng khác, dán URL Realtime Database tại đây rồi lưu.</div>
+          </div>
+          <div class="wide settings-note">🔐 Mật khẩu đồng bộ lên Firebase dưới dạng SHA‑256. API Kie được đồng bộ theo yêu cầu của bạn; nếu website được công khai và Firebase Rules cho phép đọc công khai, người khác có thể lấy key. Nên khóa Rules/Firebase Auth khi triển khai rộng rãi.</div>
+        </div>
+        <div id="settingsMessage" class="message info hidden"></div>
+      </div>
+      <div class="modal-foot"><button class="btn outline" data-close="settingsModal">Hủy</button><button id="saveSettingsBtn" class="btn primary">💾 Lưu cài đặt</button></div>
+    </div>
+  </div>
+
+  <div id="saveListModal" class="modal-backdrop hidden">
+    <div class="modal small">
+      <div class="modal-head"><h3>Lưu Danh Sách</h3><button class="close-btn" data-close="saveListModal">×</button></div>
+      <div class="modal-body"><label class="field-label" for="listNameInput">Tên danh sách</label><input id="listNameInput" class="field" type="text" placeholder="Nhập tên để gợi nhớ..." /></div>
+      <div class="modal-foot"><button class="btn outline" data-close="saveListModal">Hủy</button><button id="confirmSaveListBtn" class="btn primary">Lưu Danh Sách</button></div>
+    </div>
+  </div>
+
+  <div id="deleteModal" class="modal-backdrop hidden">
+    <div class="modal small">
+      <div class="modal-body" style="text-align:center;padding:28px"><div style="font-size:46px">🗑️</div><h3>Xóa danh sách?</h3><p style="color:#667085">Bạn có chắc chắn muốn xóa danh sách này không? Hành động này không thể hoàn tác.</p></div>
+      <div class="modal-foot"><button class="btn outline" data-close="deleteModal">Hủy</button><button id="confirmDeleteBtn" class="btn red">Xóa</button></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const DEFAULT_KIE_KEY = '6a11cd4b360b77e7cd515b8296a00e6a';
+  const DEFAULT_PASSWORD_HASH = '3a4c1c0075c6c6ea03c77d708bc2a9072bef74663d92a230bcdbc4af9e2b436f'; // SHA-256 của mật khẩu mặc định do quản trị viên cung cấp
+  const KIE_MODEL = 'gemini-3-8-flash';
+  const KIE_ENDPOINT = 'https://api.kie.ai/gemini/v1/models/gemini-3-8-flash:streamGenerateContent';
+  const KIE_CREDIT_ENDPOINT = 'https://api.kie.ai/api/v1/chat/credit';
+  const CONFIG_PATH = 'idecoCustomerAI/config';
+  const LOCAL_CONFIG_KEY = 'idecoCustomerAI.config.v2';
+  const LOCAL_SESSION_KEY = 'idecoCustomerAI.session.v2';
+  const LOCAL_LISTS_KEY = 'savedCustomerLists';
+  const LOCAL_DB_URL_KEY = 'idecoCustomerAI.databaseURL';
+  const LOCAL_USAGE_KEY = 'idecoCustomerAI.aiUsage.v1';
+
+  const firebaseConfigBase = {
+    apiKey: 'AIzaSyB9g2YYd3236hHlfQE20S5CyRBASuLpf3M',
+    authDomain: 'apikey-411b9.firebaseapp.com',
+    projectId: 'apikey-411b9',
+    storageBucket: 'apikey-411b9.firebasestorage.app',
+    messagingSenderId: '475251381398',
+    appId: '1:475251381398:web:88e442e820621bf198deb7',
+    measurementId: 'G-QT0FN73HKC'
+  };
+
+  const defaultAllowedDays = {0:true,1:true,2:true,3:true,4:true,5:true,6:true};
+  const defaultConfig = {
+    model: KIE_MODEL,
+    kieApiKey: DEFAULT_KIE_KEY,
+    passwordHash: DEFAULT_PASSWORD_HASH,
+    authVersion: 1,
+    allowedDays: {...defaultAllowedDays},
+    aiStartTime: '08:00',
+    aiEndTime: '18:00',
+    aiDailyLimit: 100,
+    blockOutsideSchedule: true,
+    limitDeepSearch: true,
+    updatedAt: 0
+  };
+
+  let appConfig = loadLocalConfig();
+  let customers = [];
+  let savedLists = loadSavedLists();
+  let firebaseApp = null;
+  let firebaseDb = null;
+  let firebaseRef = null;
+  let firebaseResolvedUrl = localStorage.getItem(LOCAL_DB_URL_KEY) || '';
+  let firebaseConnected = false;
+  let remoteListenerAttached = false;
+  let isLoading = false;
+  let isEnrichingAll = false;
+  let stopEnrichAll = false;
+  let deleteListId = null;
+  let currentTab = 'main';
+
+  const $ = (id) => document.getElementById(id);
+  const els = {};
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  async function init(){
+    [
+      'loginScreen','mainApp','loginPassword','toggleLoginPassword','loginBtn','loginMessage','loginStatus',
+      'dayBadge','firebaseBadge','creditBadge','creditValue','aiUsageBadge','aiUsageValue','refreshCreditBtn','settingsBtn','logoutBtn','lockedView','lockedText','lockedSettingsBtn','usableView',
+      'tabMainBtn','tabSavedBtn','savedCount','mainTab','savedTab','customerInput','generateBtn','exportDefaultBtn','exportCustomBtn','exportFormat2Btn','saveListBtn','enrichAllBtn','mainMessage',
+      'tableLoading','tableEmpty','tableWrap','customerTbody','resultCount','savedEmpty','savedGrid',
+      'settingsModal','modelSelect','kieApiKeyInput','toggleKieKey','newPasswordInput','toggleNewPassword','confirmPasswordInput','toggleConfirmPassword','aiStartTimeInput','aiEndTimeInput','aiDailyLimitInput','blockOutsideScheduleInput','limitDeepSearchInput','firebaseUrlInput','settingsMessage','saveSettingsBtn',
+      'saveListModal','listNameInput','confirmSaveListBtn','deleteModal','confirmDeleteBtn'
+    ].forEach(id => els[id] = $(id));
+
+    bindEvents();
+    renderSavedLists();
+    applyConfigToSettings();
+    updateDayGate();
+    restoreSession();
+    updateLoginStatus('Đang kết nối Firebase Realtime Database...');
+    await connectFirebase();
+    if (!firebaseConnected) updateLoginStatus('Firebase chưa đồng bộ; đang dùng cấu hình local.');
+    else updateLoginStatus('Đã đồng bộ cấu hình.');
+    restoreSession();
+  }
+
+  function bindEvents(){
+    els.toggleLoginPassword.addEventListener('click', () => toggleSecret(els.loginPassword));
+    els.toggleKieKey.addEventListener('click', () => toggleSecret(els.kieApiKeyInput));
+    els.toggleNewPassword.addEventListener('click', () => toggleSecret(els.newPasswordInput));
+    els.toggleConfirmPassword.addEventListener('click', () => toggleSecret(els.confirmPasswordInput));
+    els.loginBtn.addEventListener('click', login);
+    els.loginPassword.addEventListener('keydown', e => { if(e.key === 'Enter') login(); });
+    els.logoutBtn.addEventListener('click', logout);
+    els.settingsBtn.addEventListener('click', openSettings);
+    els.lockedSettingsBtn.addEventListener('click', openSettings);
+    els.refreshCreditBtn.addEventListener('click', refreshCredit);
+    els.tabMainBtn.addEventListener('click', () => switchTab('main'));
+    els.tabSavedBtn.addEventListener('click', () => switchTab('saved'));
+    els.generateBtn.addEventListener('click', generateCustomers);
+    els.exportDefaultBtn.addEventListener('click', () => exportToExcel(customers, 'danh-sach-khach-hang'));
+    els.exportCustomBtn.addEventListener('click', () => exportToExcelCustom(customers, 'danh-sach-khach-hang'));
+    els.exportFormat2Btn.addEventListener('click', () => exportToExcelFormat2(customers, 'danh-sach-khach-hang-dinh-dang-2'));
+    els.saveListBtn.addEventListener('click', openSaveListModal);
+    els.confirmSaveListBtn.addEventListener('click', confirmSaveList);
+    els.listNameInput.addEventListener('keydown', e => { if(e.key === 'Enter') confirmSaveList(); });
+    els.enrichAllBtn.addEventListener('click', enrichAll);
+    els.saveSettingsBtn.addEventListener('click', saveSettings);
+    els.confirmDeleteBtn.addEventListener('click', confirmDeleteList);
+    document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.addEventListener('click', e => { if(e.target === backdrop) closeModal(backdrop.id); }));
+    window.addEventListener('storage', e => {
+      if(e.key === LOCAL_CONFIG_KEY && e.newValue){ appConfig = loadLocalConfig(); applyConfigToSettings(); updateDayGate(); }
+      if(e.key === LOCAL_LISTS_KEY){ savedLists = loadSavedLists(); renderSavedLists(); }
+    });
+  }
+
+  function toggleSecret(input){ input.type = input.type === 'password' ? 'text' : 'password'; }
+
+  function loadLocalConfig(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(LOCAL_CONFIG_KEY) || '{}');
+      return normalizeConfig({...defaultConfig, ...raw, allowedDays:{...defaultAllowedDays, ...(raw.allowedDays || {})}});
+    }catch{return {...defaultConfig, allowedDays:{...defaultAllowedDays}};}
+  }
+
+  function normalizeConfig(cfg){
+    return {
+      model: KIE_MODEL,
+      kieApiKey: String(cfg.kieApiKey || DEFAULT_KIE_KEY).trim(),
+      passwordHash: String(cfg.passwordHash || DEFAULT_PASSWORD_HASH),
+      authVersion: Number(cfg.authVersion || 1),
+      allowedDays: {...defaultAllowedDays, ...(cfg.allowedDays || {})},
+      aiStartTime: String(cfg.aiStartTime || '08:00'),
+      aiEndTime: String(cfg.aiEndTime || '18:00'),
+      aiDailyLimit: Math.max(1, Number(cfg.aiDailyLimit || 100)),
+      blockOutsideSchedule: cfg.blockOutsideSchedule !== false,
+      limitDeepSearch: cfg.limitDeepSearch !== false,
+      updatedAt: Number(cfg.updatedAt || 0)
+    };
+  }
+
+  function saveLocalConfig(){ localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(appConfig)); }
+
+  function loadSavedLists(){
+    try{const data = JSON.parse(localStorage.getItem(LOCAL_LISTS_KEY) || '[]'); return Array.isArray(data) ? data : [];}catch{return [];}
+  }
+  function saveSavedLists(){ localStorage.setItem(LOCAL_LISTS_KEY, JSON.stringify(savedLists)); renderSavedLists(); }
+
+  function getDbCandidates(){
+    const manual = (localStorage.getItem(LOCAL_DB_URL_KEY) || '').trim();
+    const base = [
+      manual,
+      'https://apikey-411b9-default-rtdb.firebaseio.com',
+      'https://apikey-411b9.firebaseio.com',
+      'https://apikey-411b9-default-rtdb.asia-southeast1.firebasedatabase.app',
+      'https://apikey-411b9-default-rtdb.asia-southeast2.firebasedatabase.app',
+      'https://apikey-411b9-default-rtdb.europe-west1.firebasedatabase.app'
+    ].filter(Boolean);
+    return [...new Set(base)];
+  }
+
+  async function connectFirebase(){
+    if(typeof firebase === 'undefined' || !firebase.initializeApp){
+      setFirebaseStatus('bad','☁ Firebase: SDK không tải được'); return;
+    }
+    setFirebaseStatus('warn','☁ Firebase: đang dò database');
+    let permissionError = null;
+    for(const url of getDbCandidates()){
+      try{
+        if(firebaseApp){ try{await firebaseApp.delete();}catch{} firebaseApp = null; }
+        const appName = 'ideco-config-' + Math.random().toString(36).slice(2);
+        firebaseApp = firebase.initializeApp({...firebaseConfigBase, databaseURL:url}, appName);
+        firebaseDb = firebaseApp.database();
+        firebaseRef = firebaseDb.ref(CONFIG_PATH);
+        const snap = await withTimeout(firebaseRef.once('value'), 5500, 'Firebase timeout');
+        firebaseConnected = true;
+        firebaseResolvedUrl = url;
+        localStorage.setItem(LOCAL_DB_URL_KEY,url);
+        setFirebaseStatus('good','☁ Firebase: đã đồng bộ');
+        if(snap.exists()){
+          receiveRemoteConfig(snap.val());
+        }else{
+          await firebaseRef.set({...appConfig, updatedAt: firebase.database.ServerValue.TIMESTAMP});
+        }
+        attachRealtimeListener();
+        applyConfigToSettings(); updateDayGate();
+        return;
+      }catch(err){
+        const msg = String(err && (err.message || err.code) || err);
+        if(/permission|denied/i.test(msg)) permissionError = msg;
+        console.warn('Firebase candidate failed:', url, msg);
+      }
+    }
+    firebaseConnected = false;
+    firebaseRef = null;
+    if(permissionError) setFirebaseStatus('bad','☁ Firebase: thiếu quyền RTDB');
+    else setFirebaseStatus('warn','☁ Firebase: dùng local');
+  }
+
+  function attachRealtimeListener(){
+    if(!firebaseRef || remoteListenerAttached) return;
+    remoteListenerAttached = true;
+    firebaseRef.on('value', snap => {
+      if(snap.exists()) receiveRemoteConfig(snap.val());
+    }, err => { console.warn('Firebase realtime listener:', err); setFirebaseStatus('warn','☁ Firebase: mất đồng bộ'); });
+  }
+
+  function receiveRemoteConfig(remote){
+    if(!remote || typeof remote !== 'object') return;
+    const previousAuthVersion = appConfig.authVersion;
+    appConfig = normalizeConfig({...appConfig, ...remote, allowedDays:{...appConfig.allowedDays, ...(remote.allowedDays || {})}});
+    saveLocalConfig();
+    applyConfigToSettings();
+    updateDayGate();
+    const session = readSession();
+    if(session.loggedIn && session.authVersion && Number(session.authVersion) !== Number(appConfig.authVersion)){
+      logout('Mật khẩu đã được thay đổi trên hệ thống. Vui lòng đăng nhập lại.');
+    }else if(previousAuthVersion !== appConfig.authVersion){
+      updateLoginStatus('Cấu hình mật khẩu đã được cập nhật.');
+    }
+  }
+
+  function withTimeout(promise, ms, message){
+    return Promise.race([promise, new Promise((_,reject)=>setTimeout(()=>reject(new Error(message)),ms))]);
+  }
+
+  function setFirebaseStatus(kind,text){ els.firebaseBadge.className = 'pill ' + (kind || ''); els.firebaseBadge.textContent = text; }
+  function updateLoginStatus(text){ els.loginStatus.textContent = text; }
+
+  async function sha256(text){
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function readSession(){
+    try{return JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || '{}');}catch{return {};}
+  }
+
+  function restoreSession(){
+    const session = readSession();
+    if(session.loggedIn && Number(session.authVersion || 0) === Number(appConfig.authVersion || 1)) showApp();
+    else showLogin();
+  }
+
+  async function login(){
+    clearMessage(els.loginMessage);
+    const pwd = els.loginPassword.value;
+    if(!pwd){ showMessage(els.loginMessage,'error','Vui lòng nhập mật khẩu.'); return; }
+    els.loginBtn.disabled = true; els.loginBtn.innerHTML = '<span class="spinner"></span> Đang kiểm tra...';
+    try{
+      const hash = await sha256(pwd);
+      if(hash !== appConfig.passwordHash){ showMessage(els.loginMessage,'error','Mật khẩu không đúng.'); return; }
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({loggedIn:true,authVersion:appConfig.authVersion,loginAt:Date.now()}));
+      els.loginPassword.value = '';
+      showApp();
+      refreshCredit();
+    }finally{
+      els.loginBtn.disabled = false; els.loginBtn.textContent = '🔐 Đăng nhập';
+    }
+  }
+
+  function logout(message){
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+    stopEnrichAll = true;
+    showLogin();
+    if(message) showMessage(els.loginMessage,'info',message);
+  }
+  function showLogin(){ els.mainApp.classList.add('hidden'); els.loginScreen.classList.remove('hidden'); }
+  function showApp(){ els.loginScreen.classList.add('hidden'); els.mainApp.classList.remove('hidden'); updateDayGate(); renderCustomers(); renderSavedLists(); }
+
+  function vietnamDayInfo(){
+    const parts = new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Ho_Chi_Minh',weekday:'short',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const obj = Object.fromEntries(parts.map(p=>[p.type,p.value]));
+    const map = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+    const names = {0:'Chủ Nhật',1:'Thứ 2',2:'Thứ 3',3:'Thứ 4',4:'Thứ 5',5:'Thứ 6',6:'Thứ 7'};
+    const day = map[obj.weekday];
+    return {day,name:names[day],date:`${obj.day}/${obj.month}/${obj.year}`};
+  }
+
+
+  function vietnamDateKey(){
+    const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const obj = Object.fromEntries(parts.map(p=>[p.type,p.value]));
+    return `${obj.year}-${obj.month}-${obj.day}`;
+  }
+
+  function vietnamTimeMinutes(){
+    const parts = new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+    const obj = Object.fromEntries(parts.map(p=>[p.type,p.value]));
+    return Number(obj.hour)*60 + Number(obj.minute);
+  }
+
+  function parseHmToMinutes(value){
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(value||''));
+    if(!m) return 0;
+    return Math.max(0, Math.min(1439, Number(m[1])*60 + Number(m[2])));
+  }
+
+  function loadAiUsage(){
+    try{
+      const raw = JSON.parse(localStorage.getItem(LOCAL_USAGE_KEY) || '{}');
+      const today = vietnamDateKey();
+      if(raw.date !== today) return {date:today,count:0};
+      return {date:today,count:Math.max(0,Number(raw.count||0))};
+    }catch{
+      return {date:vietnamDateKey(),count:0};
+    }
+  }
+
+  function saveAiUsage(usage){
+    localStorage.setItem(LOCAL_USAGE_KEY, JSON.stringify(usage));
+    updateAiUsageBadge();
+  }
+
+  function incrementAiUsage(){
+    const usage = loadAiUsage();
+    usage.count += 1;
+    saveAiUsage(usage);
+    return usage.count;
+  }
+
+  function updateAiUsageBadge(){
+    if(!els.aiUsageBadge || !els.aiUsageValue) return;
+    const usage = loadAiUsage();
+    const limit = Math.max(1, Number(appConfig.aiDailyLimit || 100));
+    els.aiUsageValue.textContent = `${usage.count}/${limit}`;
+    els.aiUsageBadge.className = 'pill ' + (usage.count >= limit ? 'bad' : usage.count >= limit*0.8 ? 'warn' : 'good');
+  }
+
+  function isWithinAiTimeWindow(){
+    const now = vietnamTimeMinutes();
+    const start = parseHmToMinutes(appConfig.aiStartTime || '08:00');
+    const end = parseHmToMinutes(appConfig.aiEndTime || '18:00');
+    if(start === end) return true; // coi như cho phép cả ngày
+    if(start < end) return now >= start && now <= end;
+    return now >= start || now <= end; // hỗ trợ khung qua nửa đêm
+  }
+
+  function aiAccessStatus(){
+    const info = vietnamDayInfo();
+    if(!appConfig.allowedDays[String(info.day)]){
+      return {ok:false, reason:`Hôm nay (${info.name}) không nằm trong ngày được phép dùng AI.`};
+    }
+    if(appConfig.blockOutsideSchedule !== false && !isWithinAiTimeWindow()){
+      return {ok:false, reason:`AI chỉ được sử dụng trong khung ${appConfig.aiStartTime}–${appConfig.aiEndTime} (giờ Việt Nam).`};
+    }
+    const usage = loadAiUsage();
+    const limit = Math.max(1, Number(appConfig.aiDailyLimit || 100));
+    if(usage.count >= limit){
+      return {ok:false, reason:`Đã dùng đủ ${limit} lượt AI trong ngày hôm nay. Hệ thống đã khóa để tránh phát sinh thêm credit.`};
+    }
+    return {ok:true, reason:''};
+  }
+
+  function ensureAiAccess(){
+    const status = aiAccessStatus();
+    if(!status.ok){
+      updateAiUsageBadge();
+      throw new Error(status.reason);
+    }
+    return true;
+  }
+
+  function isTodayAllowed(){ const info=vietnamDayInfo(); return !!appConfig.allowedDays[String(info.day)]; }
+  function updateDayGate(){
+    if(!els.dayBadge) return;
+    const info = vietnamDayInfo();
+    const allowed = isTodayAllowed();
+    els.dayBadge.textContent = `📅 ${info.name} ${info.date}`;
+    els.dayBadge.className = 'pill ' + (allowed ? 'good':'bad');
+    els.lockedView.classList.toggle('hidden', allowed);
+    els.usableView.classList.toggle('hidden', !allowed);
+    els.lockedText.textContent = `${info.name} (${info.date}) chưa được bật trong lịch sử dụng. Mở Cài đặt để thay đổi ngày được phép.`;
+    updateAiUsageBadge();
+  }
+
+  function applyConfigToSettings(){
+    if(!els.kieApiKeyInput) return;
+    els.modelSelect.value = KIE_MODEL;
+    els.kieApiKeyInput.value = appConfig.kieApiKey || '';
+    document.querySelectorAll('#dayGrid input[data-day]').forEach(input => input.checked = !!appConfig.allowedDays[input.dataset.day]);
+    els.aiStartTimeInput.value = appConfig.aiStartTime || '08:00';
+    els.aiEndTimeInput.value = appConfig.aiEndTime || '18:00';
+    els.aiDailyLimitInput.value = String(appConfig.aiDailyLimit || 100);
+    els.blockOutsideScheduleInput.checked = appConfig.blockOutsideSchedule !== false;
+    els.limitDeepSearchInput.checked = appConfig.limitDeepSearch !== false;
+    els.firebaseUrlInput.value = firebaseResolvedUrl || localStorage.getItem(LOCAL_DB_URL_KEY) || '';
+    updateAiUsageBadge();
+  }
+
+  function openSettings(){ applyConfigToSettings(); els.newPasswordInput.value=''; els.confirmPasswordInput.value=''; clearMessage(els.settingsMessage); openModal('settingsModal'); }
+  function openModal(id){ $(id).classList.remove('hidden'); }
+  function closeModal(id){ $(id).classList.add('hidden'); }
+
+  async function saveSettings(){
+    clearMessage(els.settingsMessage);
+    const key = els.kieApiKeyInput.value.trim();
+    if(!key){ showMessage(els.settingsMessage,'error','API Key AI không được để trống.'); return; }
+    const selectedDays = {};
+    document.querySelectorAll('#dayGrid input[data-day]').forEach(input => selectedDays[input.dataset.day] = input.checked);
+    if(!Object.values(selectedDays).some(Boolean)){ showMessage(els.settingsMessage,'error','Hãy chọn ít nhất 1 ngày được phép sử dụng.'); return; }
+    const newPwd = els.newPasswordInput.value;
+    const confirmPwd = els.confirmPasswordInput.value;
+    let newHash = appConfig.passwordHash;
+    let newAuthVersion = appConfig.authVersion;
+    if(newPwd || confirmPwd){
+      if(newPwd.length < 6){ showMessage(els.settingsMessage,'error','Mật khẩu mới cần ít nhất 6 ký tự.'); return; }
+      if(newPwd !== confirmPwd){ showMessage(els.settingsMessage,'error','Hai ô mật khẩu mới chưa trùng nhau.'); return; }
+      newHash = await sha256(newPwd);
+      newAuthVersion = Number(appConfig.authVersion || 1) + 1;
+    }
+    const aiStartTime = els.aiStartTimeInput.value || '08:00';
+    const aiEndTime = els.aiEndTimeInput.value || '18:00';
+    const aiDailyLimit = Math.max(1, Number(els.aiDailyLimitInput.value || 100));
+    const blockOutsideSchedule = !!els.blockOutsideScheduleInput.checked;
+    const limitDeepSearch = !!els.limitDeepSearchInput.checked;
+    const newDbUrl = els.firebaseUrlInput.value.trim();
+    const dbUrlChanged = newDbUrl && newDbUrl !== firebaseResolvedUrl;
+    if(newDbUrl) localStorage.setItem(LOCAL_DB_URL_KEY,newDbUrl);
+
+    appConfig = normalizeConfig({
+      ...appConfig,
+      model: KIE_MODEL,
+      kieApiKey:key,
+      passwordHash:newHash,
+      authVersion:newAuthVersion,
+      allowedDays:selectedDays,
+      aiStartTime,
+      aiEndTime,
+      aiDailyLimit,
+      blockOutsideSchedule,
+      limitDeepSearch,
+      updatedAt:Date.now()
+    });
+    saveLocalConfig();
+    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({loggedIn:true,authVersion:appConfig.authVersion,loginAt:Date.now()}));
+
+    els.saveSettingsBtn.disabled = true; els.saveSettingsBtn.innerHTML='<span class="spinner"></span> Đang lưu...';
+    let remoteOk = false;
+    try{
+      if(firebaseRef){
+        await firebaseRef.set({...appConfig, updatedAt: firebase.database.ServerValue.TIMESTAMP});
+        remoteOk = true;
+      }
+      updateDayGate();
+      if(remoteOk) showMessage(els.settingsMessage,'success','Đã lưu localStorage và đồng bộ Firebase Realtime Database.');
+      else showMessage(els.settingsMessage,'info','Đã lưu localStorage. Firebase chưa kết nối nên chưa đồng bộ máy khác.');
+      els.newPasswordInput.value=''; els.confirmPasswordInput.value='';
+      await refreshCredit();
+      if(dbUrlChanged){
+        showMessage(els.settingsMessage,'info','Đã lưu URL Realtime Database mới. Trang sẽ tải lại để kết nối lại Firebase.');
+        setTimeout(()=>location.reload(),900);
+      }else{
+        setTimeout(()=>closeModal('settingsModal'),900);
+      }
+    }catch(err){
+      console.error(err);
+      showMessage(els.settingsMessage,'error','Đã lưu localStorage nhưng Firebase không ghi được: ' + friendlyError(err));
+    }finally{
+      els.saveSettingsBtn.disabled=false; els.saveSettingsBtn.textContent='💾 Lưu cài đặt';
+    }
+  }
+
+  function switchTab(tab){
+    currentTab = tab;
+    els.tabMainBtn.classList.toggle('active',tab==='main');
+    els.tabSavedBtn.classList.toggle('active',tab==='saved');
+    els.mainTab.classList.toggle('hidden',tab!=='main');
+    els.savedTab.classList.toggle('hidden',tab!=='saved');
+    if(tab==='saved') renderSavedLists();
+  }
+
+  function setBusy(busy){
+    isLoading = busy;
+    els.customerInput.disabled = busy;
+    els.generateBtn.disabled = busy;
+    updateActionButtons();
+    if(busy){ els.generateBtn.innerHTML='<span class="spinner"></span> Đang xử lý...'; els.tableLoading.classList.remove('hidden'); els.tableEmpty.classList.add('hidden'); els.tableWrap.classList.add('hidden'); }
+    else { els.generateBtn.textContent='✨ Tạo Bảng Khách Hàng'; renderCustomers(); }
+  }
+
+  function updateActionButtons(){
+    const has = customers.length > 0;
+    els.exportDefaultBtn.disabled = !has || isLoading;
+    els.exportCustomBtn.disabled = !has || isLoading;
+    els.exportFormat2Btn.disabled = !has || isLoading;
+    els.saveListBtn.disabled = !has || isLoading;
+    els.enrichAllBtn.disabled = !has || isLoading;
+  }
+
+  async function generateCustomers(){
+    clearMessage(els.mainMessage);
+    const aiStatus = aiAccessStatus();
+    if(!aiStatus.ok){ showMessage(els.mainMessage,'error',aiStatus.reason); updateAiUsageBadge(); return; }
+    const text = els.customerInput.value.trim();
+    if(!text){ showMessage(els.mainMessage,'error','Vui lòng nhập văn bản hoặc dán nội dung từ website.'); return; }
+    setBusy(true); customers=[];
+    try{
+      const useSearch = /^https?:\/\//i.test(text);
+      const prompt = useSearch ? buildUrlExtractionPrompt(text) : buildTextExtractionPrompt(text);
+      const responseText = await callKie(prompt,{useSearch});
+      customers = parseCustomerArray(responseText);
+      if(!customers.length) showMessage(els.mainMessage,'info','AI chưa tìm thấy khách hàng hợp lệ trong nội dung này.');
+      else showMessage(els.mainMessage,'success',`Đã trích xuất ${customers.length} khách hàng.`);
+      await refreshCredit();
+    }catch(err){
+      console.error(err);
+      showMessage(els.mainMessage,'error','Lỗi trích xuất dữ liệu: ' + friendlyError(err));
+    }finally{ setBusy(false); }
+  }
+
+  function buildTextExtractionPrompt(text){
+    return `Bạn là trợ lý AI chuyên gia trích xuất thông tin doanh nghiệp/khách hàng từ văn bản thô.\n\nNHIỆM VỤ:\n- Quét toàn bộ văn bản, nhận diện tất cả công ty/khách hàng.\n- Với mỗi công ty, lấy 5 trường: name, representative, phone, establishmentDate, address.\n- Ưu tiên phát hiện số điện thoại; lấy cả di động, máy bàn, hotline nếu có.\n- Không bịa đặt. Thiếu trường nào để chuỗi rỗng. Không bỏ công ty chỉ vì thiếu dữ liệu.\n- Chuẩn hóa khoảng trắng trong số điện thoại.\n\nĐẦU RA BẮT BUỘC: CHỈ trả về một mảng JSON thuần, không markdown, không giải thích, dạng:\n[{"name":"...","representative":"...","phone":"...","establishmentDate":"...","address":"..."}]\nNếu không có kết quả, trả []\n\nVĂN BẢN NGUỒN:\n${text}`;
+  }
+
+  function buildUrlExtractionPrompt(url){
+    return `Bạn là trợ lý AI chuyên gia trích xuất thông tin doanh nghiệp từ web. Hãy dùng Google Search grounding để tìm và phân tích nội dung liên quan trực tiếp tới URL sau: ${url}\n\nYÊU CẦU:\n1. Cố gắng truy cập/tìm bản được lập chỉ mục của trang và quét các doanh nghiệp xuất hiện trên trang đó.\n2. Với mỗi doanh nghiệp lấy: name, representative, phone, establishmentDate, address.\n3. Số điện thoại là ưu tiên cao; nếu trang nguồn thiếu, được phép đối chiếu thêm nguồn web đáng tin cậy nhưng không bịa.\n4. Thiếu trường nào để chuỗi rỗng; không bỏ doanh nghiệp chỉ vì thiếu trường.\n5. CHỈ trả về mảng JSON thuần, không markdown/giải thích:\n[{"name":"...","representative":"...","phone":"...","establishmentDate":"...","address":"..."}]\nNếu không có kết quả trả []`;
+  }
+
+  function normalizePhoneResult(value){
+    const raw = cleanValue(value);
+    if(!raw) return '';
+    const parts = raw
+      .replace(/[–—]/g,'-')
+      .split(/[;,|/\n]+/)
+      .map(s=>s.trim())
+      .filter(Boolean);
+    const valid = [];
+    for(const p of parts){
+      const digits = p.replace(/\D/g,'');
+      // SĐT VN thường 9-11 chữ số; vẫn giữ hotline ngắn 4-8 số nếu AI trả rõ ràng.
+      if((digits.length >= 9 && digits.length <= 11) || (digits.length >= 4 && digits.length <= 8)){
+        valid.push(p);
+      }
+    }
+    return [...new Set(valid)].join(' / ');
+  }
+
+  function buildDeepPhoneSearchPrompt(customer, attempt=1, previous={}){
+    const name = cleanValue(customer.name);
+    const representative = cleanValue(customer.representative);
+    const address = cleanValue(customer.address).replace(/Việt Nam/ig,'').trim();
+    const prevPhone = cleanValue(previous.phone);
+
+    const strategies = {
+      1: `ƯU TIÊN TÌM CHÍNH XÁC:
+- Thực hiện nhiều truy vấn Google Search khác nhau, không dừng sau truy vấn đầu tiên.
+- Tìm theo cụm: "${name}" "${address}" "điện thoại"
+- Tìm tiếp: "${name}" "số điện thoại" OR "hotline" OR "liên hệ"
+- Tìm trên website chính thức, Google-indexed contact page, Trang Vàng, cổng/hồ sơ doanh nghiệp, nhà thuốc/doanh nghiệp liên quan và trang mạng xã hội công khai.
+- Nếu thấy nhiều doanh nghiệp trùng tên, phải khớp địa chỉ trước khi lấy số.`,
+
+      2: `MỞ RỘNG TÌM KIẾM:
+- Lượt trước chưa lấy được số điện thoại: "${prevPhone || 'trống'}".
+- Tách địa chỉ thành phường/xã, quận/huyện, tỉnh/thành rồi tìm lại bằng các biến thể tên doanh nghiệp.
+- Thử tên không dấu, tên viết tắt, bỏ "CÔNG TY TNHH/CÔNG TY CỔ PHẦN/NHÀ THUỐC" nếu cần.
+- Tìm các trang "Liên hệ", "Contact", Google-indexed snippets, Trang Vàng, hồ sơ thuế/doanh nghiệp và Facebook công khai.
+- Không dừng ở một truy vấn. Chỉ lấy số khi nguồn có dấu hiệu thuộc đúng doanh nghiệp.`,
+
+      3: `ĐỐI CHIẾU SÂU CUỐI:
+- Tìm bằng tên người đại diện "${representative}" kết hợp tên doanh nghiệp "${name}" và khu vực "${address}".
+- Tìm số điện thoại xuất hiện trong snippet/kết quả liên hệ của đúng pháp nhân hoặc đúng địa điểm.
+- Có thể lấy số bàn, di động hoặc hotline công khai.
+- Nếu có nhiều số phù hợp, trả tối đa 3 số, phân cách bằng " / ".
+- Tuyệt đối không suy đoán hoặc tự tạo số.`
+    };
+
+    return `Bạn đang thực hiện DEEP WEB SEARCH để bổ sung thông tin công khai cho một khách hàng doanh nghiệp.
+
+THÔNG TIN ĐỊNH DANH:
+Tên doanh nghiệp: "${name}"
+Người đại diện đã biết: "${representative}"
+Địa chỉ đã biết: "${address}"
+
+${strategies[attempt] || strategies[3]}
+
+QUY TẮC XÁC MINH:
+1. BẮT BUỘC dùng Google Search grounding.
+2. Ưu tiên số điện thoại là mục tiêu số 1.
+3. Không lấy số của doanh nghiệp khác chỉ vì tên gần giống.
+4. Nếu nguồn mâu thuẫn, ưu tiên website chính thức / trang liên hệ trực tiếp / nguồn có địa chỉ khớp.
+5. Nếu chưa thấy sau truy vấn đầu, tiếp tục đổi truy vấn trước khi kết luận không có.
+6. Không bịa dữ liệu.
+
+CHỈ trả về JSON object thuần, không markdown:
+{"phone":"...","representative":"...","establishmentDate":"...","confidence":"high|medium|low","sourceHint":"tên miền hoặc mô tả nguồn ngắn"}
+
+Nếu thật sự không tìm được số điện thoại sau khi đã thử nhiều truy vấn, để "phone":"".
+`;
+  }
+
+  async function deepSearchCustomer(customer){
+    let best = {phone:'', representative:'', establishmentDate:'', confidence:'', sourceHint:''};
+
+    // FAST MODE:
+    // Chạy 2 chiến lược tìm kiếm song song để giảm thời gian chờ.
+    // Nếu một nhánh tìm được SĐT hợp lệ thì dùng ngay kết quả tốt nhất nhận được.
+    const prompts = [
+      buildDeepPhoneSearchPrompt(customer, 1, best),
+      buildDeepPhoneSearchPrompt(customer, 2, best)
+    ];
+
+    const tasks = prompts.map(async (prompt) => {
+      const text = await callKie(prompt,{useSearch:true});
+      const data = parseJsonObject(text);
+      return {
+        phone: normalizePhoneResult(data.phone),
+        representative: cleanValue(data.representative),
+        establishmentDate: cleanValue(data.establishmentDate),
+        confidence: cleanValue(data.confidence),
+        sourceHint: cleanValue(data.sourceHint)
+      };
+    });
+
+    const settled = await Promise.allSettled(tasks);
+
+    for(const item of settled){
+      if(item.status !== 'fulfilled') continue;
+      const data = item.value || {};
+      if(data.representative && !best.representative) best.representative = data.representative;
+      if(data.establishmentDate && !best.establishmentDate) best.establishmentDate = data.establishmentDate;
+      if(data.confidence && !best.confidence) best.confidence = data.confidence;
+      if(data.sourceHint && !best.sourceHint) best.sourceHint = data.sourceHint;
+      if(data.phone && !best.phone) best.phone = data.phone;
+    }
+
+    if(best.phone) return best;
+
+    // Chỉ chạy vòng 3 nếu hai nhánh nhanh đều không tìm thấy.
+    try{
+      const text = await callKie(buildDeepPhoneSearchPrompt(customer, 3, best),{useSearch:true});
+      const data = parseJsonObject(text);
+      best.phone = normalizePhoneResult(data.phone);
+      best.representative = cleanValue(data.representative) || best.representative;
+      best.establishmentDate = cleanValue(data.establishmentDate) || best.establishmentDate;
+      best.confidence = cleanValue(data.confidence) || best.confidence;
+      best.sourceHint = cleanValue(data.sourceHint) || best.sourceHint;
+    }catch(err){
+      const msg = friendlyError(err);
+      if(/429|rate|quota|limit/i.test(msg)) throw err;
+      console.warn('Fast deep-search fallback failed:', err);
+    }
+
+    return best;
+  }
+
+  async function enrichOne(index, rethrow=false){
+    const customer = customers[index];
+    if(!customer) return;
+    customer.isEnriching = true;
+    renderCustomers();
+    clearMessage(els.mainMessage);
+
+    try{
+      const data = await deepSearchCustomer(customer);
+
+      if(data.phone) customer.phone = data.phone;
+      if(data.representative) customer.representative = data.representative || customer.representative;
+      if(data.establishmentDate) customer.establishmentDate = data.establishmentDate || customer.establishmentDate;
+
+      customer.isEnriching = false;
+      renderCustomers();
+
+      if(data.phone){
+        const note = data.sourceHint ? ` · nguồn gợi ý: ${data.sourceHint}` : '';
+        showMessage(els.mainMessage,'success',`Đã tìm thấy số điện thoại cho "${customer.name}"${note}`);
+      }else{
+        showMessage(els.mainMessage,'info',`Đã tìm nhanh nhiều nguồn nhưng chưa xác minh được số điện thoại công khai cho "${customer.name}".`);
+      }
+
+      await refreshCredit();
+      return data;
+    }catch(err){
+      customer.isEnriching=false;
+      renderCustomers();
+      showMessage(els.mainMessage,'error',`Lỗi khi tìm kiếm thông tin cho "${customer.name}": ${friendlyError(err)}`);
+      if(rethrow) throw err;
+    }
+  }
+
+  async function enrichAll(){
+    if(isEnrichingAll){ stopEnrichAll=true; els.enrichAllBtn.textContent='⏹ Đang dừng...'; return; }
+    if(!customers.length) return;
+    const aiStatus = aiAccessStatus();
+    if(!aiStatus.ok){ showMessage(els.mainMessage,'error',aiStatus.reason); updateAiUsageBadge(); return; }
+    isEnrichingAll=true; stopEnrichAll=false; clearMessage(els.mainMessage);
+    els.enrichAllBtn.className='btn red'; els.enrichAllBtn.textContent='⏹ Bấm để Dừng Lại...';
+    try{
+      for(let i=0;i<customers.length;i++){
+        if(stopEnrichAll){ showMessage(els.mainMessage,'info','Đã tạm dừng tìm kiếm tất cả theo yêu cầu của bạn.'); break; }
+        if(!customers[i].phone){
+          try{ await enrichOne(i,true); }
+          catch(err){
+            if(/429|rate|quota|limit/i.test(friendlyError(err))){ showMessage(els.mainMessage,'error','Đã dừng vì API đang giới hạn tần suất. Vui lòng thử lại sau.'); break; }
+          }
+          for(let n=0;n<2 && !stopEnrichAll;n++) await sleep(500);
+        }
+      }
+    }finally{
+      isEnrichingAll=false; stopEnrichAll=false; els.enrichAllBtn.className='btn orange'; els.enrichAllBtn.textContent='⚡ Tìm Nhanh SĐT Tất Cả'; updateActionButtons();
+    }
+  }
+
+  async function callKie(prompt,{useSearch=false}={}){
+    ensureAiAccess();
+    const apiKey = (appConfig.kieApiKey || DEFAULT_KIE_KEY).trim();
+    if(!apiKey) throw new Error('Chưa cấu hình API Key AI.');
+    const body = {
+      stream:true,
+      contents:[{role:'user',parts:[{text:prompt}]}],
+      generationConfig:{temperature:0.1,thinkingConfig:{includeThoughts:false,thinkingLevel:useSearch?'medium':'high'}}
+    };
+    if(useSearch) body.tools = [{googleSearch:{}}];
+    let res;
+    try{
+      res = await fetch(KIE_ENDPOINT,{
+        method:'POST',
+        headers:{'Authorization':'Bearer '+apiKey,'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+    }catch(err){ throw new Error('Không kết nối được dịch vụ AI. Kiểm tra Internet/CORS: '+friendlyError(err)); }
+    if(!res.ok){
+      const detail = await safeResponseText(res);
+      throw new Error(`AI HTTP ${res.status}: ${extractApiError(detail)}`);
+    }
+    incrementAiUsage();
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+    if(contentType.includes('text/event-stream') && res.body){ return await readSSEText(res.body); }
+    const raw = await res.text();
+    return collectGeminiTextFromRaw(raw);
+  }
+
+  async function readSSEText(stream){
+    const reader = stream.getReader(); const decoder = new TextDecoder(); let buffer=''; let out='';
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value,{stream:true});
+      const lines = buffer.split(/\r?\n/); buffer = lines.pop() || '';
+      for(const lineRaw of lines){
+        const line=lineRaw.trim(); if(!line || line.startsWith(':')) continue;
+        const payload = line.startsWith('data:') ? line.slice(5).trim() : line;
+        if(!payload || payload==='[DONE]') continue;
+        try{ out += collectGeminiText(JSON.parse(payload)); }catch{}
+      }
+    }
+    if(buffer.trim()){
+      const payload = buffer.trim().replace(/^data:\s*/,'');
+      try{out += collectGeminiText(JSON.parse(payload));}catch{}
+    }
+    return out.trim();
+  }
+
+  function collectGeminiTextFromRaw(raw){
+    const trimmed = (raw || '').trim();
+    if(!trimmed) return '';
+    try{
+      const parsed = JSON.parse(trimmed);
+      if(Array.isArray(parsed)) return parsed.map(collectGeminiText).join('');
+      return collectGeminiText(parsed);
+    }catch{
+      let out='';
+      for(const line of trimmed.split(/\r?\n/)){
+        const payload=line.trim().replace(/^data:\s*/,''); if(!payload || payload==='[DONE]') continue;
+        try{out += collectGeminiText(JSON.parse(payload));}catch{}
+      }
+      return out || trimmed;
+    }
+  }
+
+  function collectGeminiText(obj){
+    let out='';
+    const candidates = Array.isArray(obj && obj.candidates) ? obj.candidates : [];
+    for(const c of candidates){
+      const parts = c && c.content && Array.isArray(c.content.parts) ? c.content.parts : [];
+      for(const p of parts){ if(p && typeof p.text==='string' && p.thought !== true) out += p.text; }
+    }
+    return out;
+  }
+
+  function parseCustomerArray(text){
+    const json = extractJsonBlock(text,'[',']');
+    let arr;
+    try{ arr=JSON.parse(json || '[]'); }
+    catch(err){
+      const cleaned=(json||'[]').replace(/,\s*([}\]])/g,'$1');
+      arr=JSON.parse(cleaned);
+    }
+    if(arr && !Array.isArray(arr) && Array.isArray(arr.customers)) arr=arr.customers;
+    if(!Array.isArray(arr)) return [];
+    return arr.filter(x=>x && typeof x==='object' && (x.name || x.companyName)).map(x=>({
+      name:cleanValue(x.name || x.companyName), representative:cleanValue(x.representative), phone:cleanValue(x.phone), establishmentDate:cleanValue(x.establishmentDate), address:cleanValue(x.address), isEnriching:false
+    }));
+  }
+
+  function parseJsonObject(text){
+    const json=extractJsonBlock(text,'{','}');
+    try{return JSON.parse(json||'{}');}catch{return JSON.parse((json||'{}').replace(/,\s*}/g,'}'));}
+  }
+  function extractJsonBlock(text,open,close){
+    let s=String(text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
+    const start=s.indexOf(open), end=s.lastIndexOf(close);
+    return start>=0 && end>=start ? s.slice(start,end+1) : s;
+  }
+  function cleanValue(v){return v==null?'':String(v).trim();}
+
+  async function refreshCredit(){
+    const apiKey=(appConfig.kieApiKey || '').trim();
+    if(!apiKey){ els.creditValue.textContent='--'; return; }
+    els.refreshCreditBtn.disabled=true; els.creditValue.textContent='...';
+    try{
+      const res=await fetch(KIE_CREDIT_ENDPOINT,{headers:{'Authorization':'Bearer '+apiKey}});
+      const raw=await res.text();
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data=JSON.parse(raw);
+      const credit=(data && data.data !== undefined) ? data.data : '--';
+      els.creditValue.textContent = formatCredit(credit);
+      els.creditBadge.className='pill good';
+    }catch(err){
+      els.creditValue.textContent='không đọc được'; els.creditBadge.className='pill warn';
+    }finally{els.refreshCreditBtn.disabled=false;}
+  }
+  function formatCredit(value){const n=Number(value); return Number.isFinite(n)?new Intl.NumberFormat('vi-VN',{maximumFractionDigits:4}).format(n):String(value);}
+
+  function renderCustomers(){
+    els.tableLoading.classList.add('hidden');
+    const has=customers.length>0;
+    els.tableEmpty.classList.toggle('hidden',has);
+    els.tableWrap.classList.toggle('hidden',!has);
+    els.resultCount.textContent=has?`Tìm thấy ${customers.length} khách hàng.`:'Chưa có dữ liệu';
+    updateActionButtons();
+    if(!has){els.customerTbody.innerHTML='';return;}
+    els.customerTbody.innerHTML=customers.map((c,i)=>`<tr>
+      <td class="name-cell">${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.representative)}</td>
+      <td>${escapeHtml(c.phone)}</td>
+      <td>${escapeHtml(c.establishmentDate)}</td>
+      <td>${escapeHtml(c.address)}</td>
+      <td><button class="btn small indigo enrich-one" data-index="${i}" ${c.isEnriching?'disabled':''}>${c.isEnriching?'<span class="spinner"></span>':'🔍 Tìm thêm'}</button></td>
+    </tr>`).join('');
+    els.customerTbody.querySelectorAll('.enrich-one').forEach(btn=>btn.addEventListener('click',()=>enrichOne(Number(btn.dataset.index))));
+  }
+
+  function openSaveListModal(){
+    if(!customers.length) return;
+    els.listNameInput.value='Danh sách '+new Date().toLocaleDateString('vi-VN'); openModal('saveListModal'); setTimeout(()=>els.listNameInput.focus(),30);
+  }
+  function confirmSaveList(){
+    const name=els.listNameInput.value.trim(); if(!name) return;
+    savedLists.unshift({id:String(Date.now()),name,createdAt:new Date().toLocaleString('vi-VN'),customers:customers.map(({isEnriching,...x})=>({...x}))});
+    saveSavedLists(); closeModal('saveListModal'); switchTab('saved');
+  }
+  function requestDeleteList(id){deleteListId=id;openModal('deleteModal');}
+  function confirmDeleteList(){if(!deleteListId)return;savedLists=savedLists.filter(x=>x.id!==deleteListId);deleteListId=null;saveSavedLists();closeModal('deleteModal');}
+
+  function renderSavedLists(){
+    const has=savedLists.length>0;
+    els.savedCount.textContent=String(savedLists.length); els.savedCount.classList.toggle('hidden',!has);
+    els.savedEmpty.classList.toggle('hidden',has); els.savedGrid.classList.toggle('hidden',!has);
+    if(!has){els.savedGrid.innerHTML='';return;}
+    els.savedGrid.innerHTML=savedLists.map(list=>`<article class="saved-card">
+      <div class="saved-top"><div><h3 title="${escapeAttr(list.name)}">${escapeHtml(list.name)}</h3><div class="saved-meta">Ngày lưu: ${escapeHtml(list.createdAt)}<br>Số lượng: <strong>${Array.isArray(list.customers)?list.customers.length:0} khách hàng</strong></div></div><button class="trash saved-delete" data-id="${escapeAttr(list.id)}" title="Xóa">×</button></div>
+      <div class="saved-actions">
+        <button class="btn small green saved-export-default" data-id="${escapeAttr(list.id)}">⬇ Tải Excel (Mặc định)</button>
+        <button class="btn small teal saved-export-custom" data-id="${escapeAttr(list.id)}">▤ Tải Excel (Định dạng)</button>
+        <button class="btn small indigo saved-export-format2" data-id="${escapeAttr(list.id)}">⬇ Tải Excel (Định dạng 2 + Địa chỉ)</button>
+      </div></article>`).join('');
+    els.savedGrid.querySelectorAll('.saved-delete').forEach(b=>b.addEventListener('click',()=>requestDeleteList(b.dataset.id)));
+    els.savedGrid.querySelectorAll('.saved-export-default').forEach(b=>b.addEventListener('click',()=>{const x=findList(b.dataset.id);if(x)exportToExcel(x.customers,x.name)}));
+    els.savedGrid.querySelectorAll('.saved-export-custom').forEach(b=>b.addEventListener('click',()=>{const x=findList(b.dataset.id);if(x)exportToExcelCustom(x.customers,x.name)}));
+    els.savedGrid.querySelectorAll('.saved-export-format2').forEach(b=>b.addEventListener('click',()=>{const x=findList(b.dataset.id);if(x)exportToExcelFormat2(x.customers,x.name)}));
+  }
+  function findList(id){return savedLists.find(x=>String(x.id)===String(id));}
+
+  function exportToExcel(data,fileName){
+    if(!ensureXLSX(data)) return;
+    const rows=data.map(c=>({'Tên công ty':c.name,'Người đại diện':c.representative,'Điện thoại':c.phone,'Ngày thành lập':c.establishmentDate,'Địa chỉ':c.address}));
+    const ws=XLSX.utils.json_to_sheet(rows); ws['!cols']=[{wch:30},{wch:25},{wch:20},{wch:20},{wch:50}]; writeWorkbook(ws,'KhachHang',safeFileName(fileName)+'.xlsx');
+  }
+  function exportToExcelCustom(data,fileName){
+    if(!ensureXLSX(data)) return;
+    const header=['Tên công ty','Người đại diện','Điện thoại','Ngày thành lập','Địa chỉ'];
+    const rows=data.map(c=>[c.name,c.representative,c.phone,c.establishmentDate,c.address]);
+    const ws=XLSX.utils.aoa_to_sheet([header,...rows]); ws['!cols']=[{wch:30},{wch:25},{wch:20},{wch:20},{wch:50}]; writeWorkbook(ws,'KhachHang',safeFileName(fileName)+'-dinh-dang.xlsx');
+  }
+  function exportToExcelFormat2(data,fileName){
+    if(!ensureXLSX(data)) return;
+    const rows=data.map((c,i)=>({ST:i+1,NAME:c.representative||'',PHONE:c.phone,GENDER:c.name,ADDRESS:c.address||''}));
+    const ws=XLSX.utils.json_to_sheet(rows); ws['!cols']=[{wch:10},{wch:40},{wch:20},{wch:40},{wch:50}]; writeWorkbook(ws,'KhachHang',safeFileName(fileName)+'-dinh-dang-2.xlsx');
+  }
+  function ensureXLSX(data){if(!data||!data.length){showMessage(els.mainMessage,'error','Không có dữ liệu khách hàng để xuất file Excel.');return false;}if(typeof XLSX==='undefined'){showMessage(els.mainMessage,'error','Thư viện Excel chưa tải được. Kiểm tra Internet.');return false;}return true;}
+  function writeWorkbook(ws,sheetName,fileName){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,sheetName);XLSX.writeFile(wb,fileName);}
+  function safeFileName(name){return String(name||'danh-sach-khach-hang').replace(/[\\/:*?"<>|]+/g,'-').trim();}
+
+  function showMessage(el,type,text){el.className='message '+type;el.textContent=text;el.classList.remove('hidden');}
+  function clearMessage(el){el.textContent='';el.classList.add('hidden');}
+  function friendlyError(err){
+    const msg=String(err && (err.message || err) || 'Lỗi không xác định');
+    if(/401|unauthorized/i.test(msg)) return 'API Key AI không hợp lệ hoặc đã hết quyền.';
+    if(/403|forbidden/i.test(msg)) return 'API bị từ chối quyền truy cập (403).';
+    if(/429|rate|quota|limit/i.test(msg)) return 'Đã chạm giới hạn tần suất/credit của API (429).';
+    if(/credit|balance/i.test(msg)) return 'Credit AI.ai không đủ.';
+    return msg.length>500?msg.slice(0,500)+'…':msg;
+  }
+  async function safeResponseText(res){try{return await res.text();}catch{return '';}}
+  function extractApiError(raw){
+    try{const x=JSON.parse(raw);return x.message||x.msg||x.error?.message||raw;}catch{return raw||'Không có chi tiết lỗi';}
+  }
+  function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+  function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));}
+  function escapeAttr(s){return escapeHtml(s);}
+})();
+</script>
+</body>
+</html>
