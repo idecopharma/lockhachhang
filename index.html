@@ -107,7 +107,7 @@
       <div class="hero">
         <h1>AI Lọc Danh Sách Khách Hàng</h1>
         <p>Dán link website hoặc văn bản để tự động trích xuất tên công ty, người đại diện, điện thoại, ngày thành lập và địa chỉ; sau đó có thể tìm bổ sung từng khách hàng hoặc toàn bộ danh sách bằng chế độ tìm sâu nhiều vòng.</p>
-        <div class="sub-banner"><strong>🛡 AI Search đã được cấu hình:</strong> ứng dụng sử dụng tìm kiếm web có đối chiếu nguồn khi xử lý URL hoặc tìm bổ sung thông tin.</div>
+        <div class="sub-banner"><strong>🛡 AI Search:</strong> chế độ tìm số điện thoại đã được tối ưu để đối chiếu nhiều nguồn web và địa chỉ doanh nghiệp.</div>
       </div>
 
       <div id="lockedView" class="hidden">
@@ -136,7 +136,7 @@
               <button id="exportCustomBtn" class="btn teal" disabled>▤ Xuất File Định Dạng</button>
               <button id="exportFormat2Btn" class="btn indigo" disabled>⬇ Xuất Định Dạng 2 (+Địa chỉ)</button>
               <button id="saveListBtn" class="btn indigo" disabled>📁 Lưu Danh Sách (Định Dạng 2)</button>
-              <button id="enrichAllBtn" class="btn orange" disabled>⚡ Tìm Nhanh SĐT Tất Cả</button>
+              <button id="enrichAllBtn" class="btn orange" disabled>⚡ Tìm SĐT Nhanh</button>
             </div>
             <div id="mainMessage" class="message error hidden"></div>
           </div>
@@ -855,58 +855,87 @@ Nếu thật sự không tìm được số điện thoại sau khi đã thử n
   }
 
   async function deepSearchCustomer(customer){
-    let best = {phone:'', representative:'', establishmentDate:'', confidence:'', sourceHint:''};
+    const searchAddress = customer.address ? String(customer.address).replace(/Việt Nam/i, "").trim() : "";
 
-    // FAST MODE:
-    // Chạy 2 chiến lược tìm kiếm song song để giảm thời gian chờ.
-    // Nếu một nhánh tìm được SĐT hợp lệ thì dùng ngay kết quả tốt nhất nhận được.
-    const prompts = [
-      buildDeepPhoneSearchPrompt(customer, 1, best),
-      buildDeepPhoneSearchPrompt(customer, 2, best)
-    ];
+    const prompt = `
+Nhiệm vụ: MỤC TIÊU TỐI THƯỢNG LÀ TÌM CHO BẰNG ĐƯỢC SỐ ĐIỆN THOẠI cho công ty/khách hàng sau đây. Nếu có dữ liệu người đại diện và ngày thành lập thì lấy thêm.
 
-    const tasks = prompts.map(async (prompt) => {
-      const text = await callKie(prompt,{useSearch:true});
-      const data = parseJsonObject(text);
+THÔNG TIN ĐẦU VÀO:
+- Tên công ty/khách hàng: "${cleanValue(customer.name)}"
+- Địa chỉ đã biết: "${searchAddress}"
+
+YÊU CẦU QUAN TRỌNG NHẤT: BẮT BUỘC PHẢI TÌM SỐ ĐIỆN THOẠI. HÃY SỬ DỤNG GOOGLE SEARCH ĐỂ TÌM KIẾM NHIỀU NGUỒN KHÁC NHAU.
+
+1. ĐỐI CHIẾU ĐỊA CHỈ:
+- Ưu tiên nguồn có địa chỉ khớp hoặc nằm cùng Phường/Xã, Quận/Huyện, Tỉnh/Thành với địa chỉ đầu vào.
+- Nếu có nhiều đơn vị trùng tên, KHÔNG lấy số điện thoại khi chưa xác định đúng địa chỉ.
+
+2. TÌM KIẾM SỐ ĐIỆN THOẠI SÂU RỘNG:
+- Quét website chính thức, trang Liên hệ/Contact.
+- Quét Facebook công khai, Trang Vàng, hồ sơ công ty, mã số thuế, Masothue, Hosocongty và các nguồn doanh nghiệp được Google lập chỉ mục.
+- Thử các truy vấn tên đầy đủ, tên rút gọn, tên không dấu, tên + địa chỉ, tên + "điện thoại", tên + "hotline", tên + "liên hệ".
+
+3. SỐ ĐIỆN THOẠI LÀ TRỌNG TÂM:
+- Lấy mọi loại số hợp lệ: di động, máy bàn, hotline.
+- Có thể trả nhiều số nếu cùng thuộc đúng doanh nghiệp, phân cách bằng " / ".
+
+4. KHÔNG ĐƯỢC KẾT LUẬN QUÁ SỚM:
+- Nếu truy vấn đầu tiên không thấy số, hãy đổi truy vấn và tiếp tục tìm.
+- Chỉ khi đã thử nhiều nguồn mà vẫn không xác minh được mới để chuỗi rỗng.
+
+5. KHÔNG BỊA DỮ LIỆU.
+
+OUTPUT:
+Chỉ trả về DUY NHẤT JSON thuần:
+{"phone":"...","representative":"...","establishmentDate":"...","sourceHint":"..."}
+Tuyệt đối không thêm markdown hoặc giải thích.
+`;
+
+    // Lượt chính: 1 request mạnh, giống logic AI Studio hơn, tránh chạy song song tốn credit.
+    let responseText = await callKie(prompt,{useSearch:true});
+    let data = parseJsonObject(responseText);
+    let phone = normalizePhoneResult(data.phone);
+
+    if(phone){
       return {
-        phone: normalizePhoneResult(data.phone),
+        phone,
         representative: cleanValue(data.representative),
         establishmentDate: cleanValue(data.establishmentDate),
-        confidence: cleanValue(data.confidence),
+        confidence: 'high',
         sourceHint: cleanValue(data.sourceHint)
       };
-    });
-
-    const settled = await Promise.allSettled(tasks);
-
-    for(const item of settled){
-      if(item.status !== 'fulfilled') continue;
-      const data = item.value || {};
-      if(data.representative && !best.representative) best.representative = data.representative;
-      if(data.establishmentDate && !best.establishmentDate) best.establishmentDate = data.establishmentDate;
-      if(data.confidence && !best.confidence) best.confidence = data.confidence;
-      if(data.sourceHint && !best.sourceHint) best.sourceHint = data.sourceHint;
-      if(data.phone && !best.phone) best.phone = data.phone;
     }
 
-    if(best.phone) return best;
+    // Fallback chỉ khi thật sự không có số.
+    const retryPrompt = `
+Lượt tìm trước chưa tìm được số điện thoại. Hãy TÌM LẠI, KHÔNG lặp nguyên truy vấn cũ.
 
-    // Chỉ chạy vòng 3 nếu hai nhánh nhanh đều không tìm thấy.
-    try{
-      const text = await callKie(buildDeepPhoneSearchPrompt(customer, 3, best),{useSearch:true});
-      const data = parseJsonObject(text);
-      best.phone = normalizePhoneResult(data.phone);
-      best.representative = cleanValue(data.representative) || best.representative;
-      best.establishmentDate = cleanValue(data.establishmentDate) || best.establishmentDate;
-      best.confidence = cleanValue(data.confidence) || best.confidence;
-      best.sourceHint = cleanValue(data.sourceHint) || best.sourceHint;
-    }catch(err){
-      const msg = friendlyError(err);
-      if(/429|rate|quota|limit/i.test(msg)) throw err;
-      console.warn('Fast deep-search fallback failed:', err);
-    }
+Tên: "${cleanValue(customer.name)}"
+Địa chỉ: "${searchAddress}"
 
-    return best;
+BẮT BUỘC:
+- thử tên không dấu;
+- thử tên rút gọn bỏ "CÔNG TY TNHH", "CÔNG TY CỔ PHẦN", "NHÀ THUỐC";
+- tìm theo tên + Quận/Huyện/Tỉnh;
+- tìm "điện thoại", "hotline", "liên hệ", "contact";
+- đối chiếu Facebook công khai, Trang Vàng, hồ sơ doanh nghiệp, mã số thuế và website chính thức;
+- không lấy số của đơn vị khác tên gần giống.
+
+Chỉ trả JSON:
+{"phone":"...","representative":"...","establishmentDate":"...","sourceHint":"..."}
+`;
+
+    responseText = await callKie(retryPrompt,{useSearch:true});
+    data = parseJsonObject(responseText);
+    phone = normalizePhoneResult(data.phone);
+
+    return {
+      phone,
+      representative: cleanValue(data.representative),
+      establishmentDate: cleanValue(data.establishmentDate),
+      confidence: phone ? 'medium' : '',
+      sourceHint: cleanValue(data.sourceHint)
+    };
   }
 
   async function enrichOne(index, rethrow=false){
@@ -930,7 +959,7 @@ Nếu thật sự không tìm được số điện thoại sau khi đã thử n
         const note = data.sourceHint ? ` · nguồn gợi ý: ${data.sourceHint}` : '';
         showMessage(els.mainMessage,'success',`Đã tìm thấy số điện thoại cho "${customer.name}"${note}`);
       }else{
-        showMessage(els.mainMessage,'info',`Đã tìm nhanh nhiều nguồn nhưng chưa xác minh được số điện thoại công khai cho "${customer.name}".`);
+        showMessage(els.mainMessage,'info',`Đã tìm nhiều nguồn nhưng chưa xác minh được số điện thoại công khai cho "${customer.name}".`);
       }
 
       await refreshCredit();
@@ -958,11 +987,11 @@ Nếu thật sự không tìm được số điện thoại sau khi đã thử n
           catch(err){
             if(/429|rate|quota|limit/i.test(friendlyError(err))){ showMessage(els.mainMessage,'error','Đã dừng vì API đang giới hạn tần suất. Vui lòng thử lại sau.'); break; }
           }
-          for(let n=0;n<2 && !stopEnrichAll;n++) await sleep(500);
+          for(let n=0;n<1 && !stopEnrichAll;n++) await sleep(400);
         }
       }
     }finally{
-      isEnrichingAll=false; stopEnrichAll=false; els.enrichAllBtn.className='btn orange'; els.enrichAllBtn.textContent='⚡ Tìm Nhanh SĐT Tất Cả'; updateActionButtons();
+      isEnrichingAll=false; stopEnrichAll=false; els.enrichAllBtn.className='btn orange'; els.enrichAllBtn.textContent='⚡ Tìm SĐT Nhanh'; updateActionButtons();
     }
   }
 
@@ -973,7 +1002,7 @@ Nếu thật sự không tìm được số điện thoại sau khi đã thử n
     const body = {
       stream:true,
       contents:[{role:'user',parts:[{text:prompt}]}],
-      generationConfig:{temperature:0.1,thinkingConfig:{includeThoughts:false,thinkingLevel:useSearch?'medium':'high'}}
+      generationConfig:{temperature:0.1,thinkingConfig:{includeThoughts:false,thinkingLevel:'high'}}
     };
     if(useSearch) body.tools = [{googleSearch:{}}];
     let res;
